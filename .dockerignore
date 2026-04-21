@@ -1,0 +1,28 @@
+# Git
+.git
+.gitignore
+
+# Test files
+**/*_test.go
+**/testdata
+
+# Documentation
+*.md
+docs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build artifacts
+bin/
+dist/
+
+# Scripts (not needed in image)
+scripts/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
