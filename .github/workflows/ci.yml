@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+          cache-dependency-path: app/go.mod
+
+      - name: Download dependencies
+        working-directory: app
+        run: go mod download
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: app
+
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+          cache-dependency-path: app/go.mod
+
+      - name: Download dependencies
+        working-directory: app
+        run: go mod download
+
+      - name: Run unit tests
+        working-directory: app
+        run: go test ./internal/... -race -count=1 -coverprofile=coverage.out -mod=mod
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: app/coverage.out
+          fail_ci_if_error: false
+
+  test-integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache: true
+          cache-dependency-path: app/go.mod
+
+      - name: Download dependencies
+        working-directory: app
+        run: go mod download
+
+      - name: Run integration tests
+        working-directory: app
+        run: go test ./internal/store/... -tags=integration -race -timeout=120s -v -mod=mod
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker images
+        run: docker compose build --parallel
