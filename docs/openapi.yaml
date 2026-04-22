@@ -1,0 +1,243 @@
+openapi: "3.0.3"
+info:
+  title: Stock Market Simulation API
+  description: |
+    A simplified stock exchange REST API with high availability.
+    Three application instances share state via Redis; Nginx load balances traffic.
+    POST /chaos kills one instance - the service remains available.
+  version: "1.0.0"
+  contact:
+    name: Kacper Smaga
+    email: kacper.smaga@microsoft.wsei.edu.pl
+
+servers:
+  - url: http://localhost:8080
+    description: Local Docker Compose
+
+paths:
+  /stocks:
+    get:
+      summary: Get all bank stocks
+      operationId: getBankStocks
+      responses:
+        "200":
+          description: List of all stocks in the bank
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StocksResponse"
+    post:
+      summary: Replace all bank stocks (atomic)
+      operationId: setBankStocks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StocksResponse"
+            example:
+              stocks:
+                - name: AAPL
+                  quantity: 100
+                - name: GOOG
+                  quantity: 50
+      responses:
+        "200":
+          description: Stocks replaced successfully
+        "400":
+          description: Validation error (negative quantity)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /wallets/{walletID}:
+    get:
+      summary: Get wallet portfolio
+      operationId: getWallet
+      parameters:
+        - $ref: "#/components/parameters/walletID"
+      responses:
+        "200":
+          description: Wallet contents (empty wallet returns empty stocks array)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Wallet"
+
+  /wallets/{walletID}/stocks/{stockName}:
+    get:
+      summary: Get quantity of a specific stock in wallet
+      operationId: getWalletStock
+      parameters:
+        - $ref: "#/components/parameters/walletID"
+        - $ref: "#/components/parameters/stockName"
+      responses:
+        "200":
+          description: Quantity as a JSON number
+          content:
+            application/json:
+              schema:
+                type: integer
+                example: 99
+    post:
+      summary: Buy or sell a stock
+      operationId: trade
+      parameters:
+        - $ref: "#/components/parameters/walletID"
+        - $ref: "#/components/parameters/stockName"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TradeRequest"
+      responses:
+        "200":
+          description: Trade executed successfully
+        "400":
+          description: Bank out of stock / wallet out of stock / invalid trade type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Stock not found in bank
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /log:
+    get:
+      summary: Get trade audit log
+      operationId: getLog
+      responses:
+        "200":
+          description: All successful trade operations in order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LogResponse"
+
+  /chaos:
+    post:
+      summary: Kill one application instance
+      operationId: chaos
+      description: |
+        Returns 200, then kills the process after 50ms.
+        The instance restarts automatically via Docker restart policy.
+        Other instances continue serving traffic during restart.
+      responses:
+        "200":
+          description: Chaos initiated
+
+  /healthz:
+    get:
+      summary: Liveness probe
+      operationId: healthz
+      responses:
+        "200":
+          description: Service is alive
+
+  /readyz:
+    get:
+      summary: Readiness probe
+      operationId: readyz
+      responses:
+        "200":
+          description: Service is ready to accept traffic
+
+components:
+  parameters:
+    walletID:
+      name: walletID
+      in: path
+      required: true
+      schema:
+        type: string
+      example: alice
+    stockName:
+      name: stockName
+      in: path
+      required: true
+      schema:
+        type: string
+      example: AAPL
+
+  schemas:
+    Stock:
+      type: object
+      required: [name, quantity]
+      properties:
+        name:
+          type: string
+          example: AAPL
+        quantity:
+          type: integer
+          minimum: 0
+          example: 100
+
+    StocksResponse:
+      type: object
+      required: [stocks]
+      properties:
+        stocks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Stock"
+
+    Wallet:
+      type: object
+      required: [id, stocks]
+      properties:
+        id:
+          type: string
+          example: alice
+        stocks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Stock"
+
+    TradeRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [buy, sell]
+          example: buy
+
+    LogEntry:
+      type: object
+      required: [wallet_id, stock_name, type, timestamp]
+      properties:
+        wallet_id:
+          type: string
+          example: alice
+        stock_name:
+          type: string
+          example: AAPL
+        type:
+          type: string
+          enum: [buy, sell]
+        timestamp:
+          type: string
+          format: date-time
+
+    LogResponse:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items:
+            $ref: "#/components/schemas/LogEntry"
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+          example: stock not found in bank
