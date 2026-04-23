@@ -47,7 +47,7 @@ jobs:
 
       - name: Run unit tests
         working-directory: app
-        run: go test ./internal/... -race -count=1 -coverprofile=coverage.out -mod=mod
+        run: go test ./internal/... -race -count=1 -coverprofile=coverage.out
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -73,7 +73,7 @@ jobs:
 
       - name: Run integration tests
         working-directory: app
-        run: go test ./internal/store/... -tags=integration -race -timeout=120s -v -mod=mod
+        run: go test ./internal/store/... -tags=integration -race -timeout=120s -v
 
   docker-build:
     name: Docker Build
